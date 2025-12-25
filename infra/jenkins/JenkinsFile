@@ -15,16 +15,21 @@ pipeline {
     }
 
     stage('Build JARs (skip tests)') {
-      steps {
-        sh '''
-          set -e
-          for svc in auth-service gateway config-server; do
-            echo "---- Building $svc ----"
-            (cd services/$svc && mvn -DskipTests package)
-          done
-        '''
-      }
-    }
+  steps {
+    sh '''
+      set -e
+      for svc in auth-service gateway config-server; do
+        echo "---- Building $svc with Maven container ----"
+        docker run --rm \
+          -v "$PWD:/workspace" \
+          -w "/workspace/services/$svc" \
+          maven:3.9-eclipse-temurin-17 \
+          mvn -DskipTests package
+      done
+    '''
+  }
+}
+
 
     stage('Build Docker Images') {
       steps {
