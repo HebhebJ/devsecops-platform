@@ -1,0 +1,39 @@
+server:
+  port: 8080
+
+spring:
+  cloud:
+    gateway:
+      routes:
+        - id: auth
+          uri: http://auth-service:8080
+          predicates:
+            - Path=/auth/**
+          # REMOVE StripPrefix here
+
+        - id: orders
+          uri: http://orders-service:8080
+          predicates:
+            - Path=/orders/**
+          filters:
+            - StripPrefix=1
+
+        - id: payments
+          uri: http://payments-service:8080
+          predicates:
+            - Path=/payments/**
+          filters:
+            - StripPrefix=1
+
+        - id: analytics
+          uri: http://analytics-service:8080
+          predicates:
+            - Path=/analytics/**
+          filters:
+            - StripPrefix=1
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,gateway

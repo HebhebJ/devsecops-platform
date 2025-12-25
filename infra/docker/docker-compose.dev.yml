@@ -1,0 +1,117 @@
+version: "3.9"
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: appdb
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - devsecops
+
+  mongo:
+    image: mongo:7
+    container_name: mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - devsecops
+
+  config-server:
+    build: ../../services/config-server
+    container_name: config-server
+    ports:
+      - "8888:8888"
+    volumes:
+      - ../../config-repo:/config
+    networks:
+      - devsecops
+
+  auth-service:
+    build: ../../services/auth-service
+    container_name: auth-service
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      SPRING_CONFIG_IMPORT: "optional:configserver:http://config-server:8888"
+      SPRING_APPLICATION_NAME: "auth-service"
+    depends_on:
+      - mysql
+      - config-server
+    networks:
+      - devsecops
+
+  orders-service:
+    build: ../../services/orders-service
+    container_name: orders-service
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+    depends_on:
+      - mysql
+      - config-server
+    networks:
+      - devsecops
+
+  payments-service:
+    build: ../../services/payments-service
+    container_name: payments-service
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+    depends_on:
+      - mysql
+      - config-server
+    networks:
+      - devsecops
+
+  analytics-service:
+    build: ../../services/analytics-service
+    container_name: analytics-service
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+    depends_on:
+      - mongo
+      - config-server
+    networks:
+      - devsecops
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    networks:
+      - devsecops
+
+  gateway:
+    build: ../../services/gateway
+    container_name: gateway
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      SPRING_APPLICATION_NAME: gateway
+      SPRING_CONFIG_IMPORT: "optional:configserver:http://config-server:8888"
+    ports:
+      - "8080:8080"
+    depends_on:
+      - redis
+      - config-server
+      - auth-service
+      - orders-service
+      - payments-service
+      - analytics-service
+    networks:
+      - devsecops
+
+volumes:
+  mysql_data:
+  mongo_data:
+
+
+networks:
+  devsecops:
+    driver: bridge

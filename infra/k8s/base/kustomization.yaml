@@ -1,0 +1,10 @@
+resources:
+  - namespace.yaml
+  - mysql
+  - mongo
+  - config-server
+  - gateway
+  - auth
+  - orders
+  - payments
+  - analytics
