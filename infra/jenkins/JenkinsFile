@@ -18,19 +18,28 @@ pipeline {
   steps {
     sh '''
       set -e
-      echo "Building using Docker volume jenkins_home (NOT host paths)"
+      echo "WORKSPACE=$WORKSPACE"
+      echo "Sanity check: list auth-service folder from Jenkins container"
+      ls -la "$WORKSPACE/services/auth-service"
+      echo "Now list same folder from Maven container via volume mount:"
+      docker run --rm \
+        -v jenkins_home:/var/jenkins_home \
+        -w "$WORKSPACE/services/auth-service" \
+        maven:3.9-eclipse-temurin-17 \
+        sh -lc "pwd; ls -la; test -f pom.xml && echo POM_OK"
 
       for svc in auth-service gateway config-server; do
         echo "---- Building $svc ----"
         docker run --rm \
           -v jenkins_home:/var/jenkins_home \
-          -w "/var/jenkins_home/workspace/devsecops-platform/services/$svc" \
+          -w "$WORKSPACE/services/$svc" \
           maven:3.9-eclipse-temurin-17 \
           mvn -DskipTests package
       done
     '''
   }
 }
+
 
 
 
