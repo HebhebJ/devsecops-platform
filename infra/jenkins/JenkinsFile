@@ -1,0 +1,76 @@
+pipeline {
+  agent any
+
+  environment {
+    DOCKER_BUILDKIT = "1"
+    COMPOSE_FILE = "infra/docker/docker-compose.dev.yml"
+  }
+
+  stages {
+    stage('Checkout') {
+      steps {
+        checkout scm
+        sh 'ls -la'
+      }
+    }
+
+    stage('Build JARs (skip tests)') {
+      steps {
+        sh '''
+          set -e
+          for svc in auth-service gateway config-server; do
+            echo "---- Building $svc ----"
+            (cd services/$svc && mvn -DskipTests package)
+          done
+        '''
+      }
+    }
+
+    stage('Build Docker Images') {
+      steps {
+        sh '''
+          set -e
+          docker version
+          docker compose -f $COMPOSE_FILE build auth-service gateway config-server
+        '''
+      }
+    }
+
+    stage('Trivy Scan (images)') {
+      steps {
+        sh '''
+          set -e
+          # install trivy if not present (simple approach)
+          if ! command -v trivy >/dev/null 2>&1; then
+            echo "Installing Trivy..."
+            apt-get update -y && apt-get install -y wget
+            wget -qO- https://github.com/aquasecurity/trivy/releases/latest/download/trivy_0.58.1_Linux-64bit.tar.gz | tar zx
+            mv trivy /usr/local/bin/trivy
+          fi
+
+          echo "Scanning images..."
+          # Compose builds images named like docker-auth-service, docker-gateway, etc in your setup
+          trivy image --severity HIGH,CRITICAL --exit-code 0 docker-auth-service || true
+          trivy image --severity HIGH,CRITICAL --exit-code 0 docker-gateway || true
+          trivy image --severity HIGH,CRITICAL --exit-code 0 docker-config-server || true
+        '''
+      }
+    }
+
+    stage('Deploy (docker compose)') {
+      steps {
+        sh '''
+          set -e
+          docker compose -f $COMPOSE_FILE up -d
+          docker ps
+        '''
+      }
+    }
+  }
+
+  post {
+    always {
+      sh 'docker compose -f $COMPOSE_FILE ps || true'
+    }
+  }
+}
